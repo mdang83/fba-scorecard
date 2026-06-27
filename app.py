@@ -146,11 +146,11 @@ if analyze:
     opp = scores["opportunity_score"]
 
     if opp >= 70:
-        color, label, badge = "#2ecc71", "Strong Opportunity", "🟢"
+        color, fill_color, label, badge = "#2ecc71", "rgba(46, 204, 113, 0.13)", "Strong Opportunity", "🟢"
     elif opp >= 40:
-        color, label, badge = "#f39c12", "Moderate Opportunity", "🟡"
+        color, fill_color, label, badge = "#f39c12", "rgba(243, 156, 18, 0.13)", "Moderate Opportunity", "🟡"
     else:
-        color, label, badge = "#e74c3c", "Weak Opportunity", "🔴"
+        color, fill_color, label, badge = "#e74c3c", "rgba(231, 76, 60, 0.13)", "Weak Opportunity", "🔴"
 
     st.divider()
 
@@ -235,7 +235,7 @@ if analyze:
                         mode="lines",
                         line=dict(color=color, width=2.5),
                         fill="tozeroy",
-                        fillcolor=f"{color}22",
+                        fillcolor=fill_color,
                         name=keyword,
                     )
                 )
