@@ -1,0 +1,6 @@
+streamlit>=1.32.0
+pytrends>=4.9.2
+praw>=7.7.1
+plotly>=5.19.0
+pandas>=2.0.0
+numpy>=1.26.0
