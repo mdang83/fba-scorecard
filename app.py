@@ -189,11 +189,14 @@ if analyze:
         st.subheader("Sub-Score Radar")
         categories = ["Trend Score", "Buzz Score", "Sales Potential"]
         values = [scores["trend_score"], scores["buzz_score"], scores["sales_score"]]
+        # Floor at 1.0 so the polygon is never degenerate (Plotly raises ValueError
+        # when fill="toself" receives all-zero or near-zero radial coordinates).
+        radar_values = [max(float(v), 1.0) for v in values]
 
         radar = go.Figure()
         radar.add_trace(
             go.Scatterpolar(
-                r=values + [values[0]],
+                r=radar_values + [radar_values[0]],
                 theta=categories + [categories[0]],
                 fill="toself",
                 fillcolor=f"{color}2a",
