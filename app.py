@@ -222,38 +222,49 @@ if analyze:
         trend_df: pd.DataFrame = trends_result.get("data", pd.DataFrame())
 
         if not trend_df.empty:
-            col_name = trend_df.columns[0]
-            line = go.Figure()
-            line.add_trace(
-                go.Scatter(
-                    x=trend_df.index,
-                    y=trend_df[col_name],
-                    mode="lines",
-                    line=dict(color=color, width=2.5),
-                    fill="tozeroy",
-                    fillcolor=f"{color}22",
-                    name=keyword,
+            try:
+                col_name = trend_df.columns[0]
+                x_vals = list(trend_df.index)
+                y_vals = [float(v) for v in trend_df[col_name]]
+
+                line = go.Figure()
+                line.add_trace(
+                    go.Scatter(
+                        x=x_vals,
+                        y=y_vals,
+                        mode="lines",
+                        line=dict(color=color, width=2.5),
+                        fill="tozeroy",
+                        fillcolor=f"{color}22",
+                        name=keyword,
+                    )
                 )
-            )
-            line.update_layout(
-                xaxis_title="Date",
-                yaxis_title="Interest (0 – 100)",
-                yaxis=dict(range=[0, 105], gridcolor="#333"),
-                xaxis=dict(gridcolor="#333"),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                height=380,
-                margin=dict(l=50, r=20, t=30, b=50),
-                hovermode="x unified",
-            )
-            st.plotly_chart(line, use_container_width=True)
+                line.update_layout(
+                    xaxis_title="Date",
+                    yaxis_title="Interest (0 – 100)",
+                    yaxis=dict(range=[0, 105], gridcolor="#333"),
+                    xaxis=dict(gridcolor="#333"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    height=380,
+                    margin=dict(l=50, r=20, t=30, b=50),
+                    hovermode="x unified",
+                )
+                st.plotly_chart(line, use_container_width=True)
+            except Exception as e:
+                st.warning(
+                    f"Could not render the Trends chart for **{keyword}**. "
+                    "The data was fetched but could not be plotted — "
+                    "try a different keyword or search again."
+                )
+                st.caption(f"Chart error: {e}")
         else:
-            st.info(
-                "No Google Trends data returned for this keyword. "
-                "Try a broader term or check for rate-limiting."
+            st.warning(
+                f"No Google Trends data returned for **{keyword}**. "
+                "Try a broader term or wait a moment if you've searched frequently."
             )
             if "error" in trends_result:
-                st.caption(f"Error: {trends_result['error']}")
+                st.caption(f"Fetch error: {trends_result['error']}")
 
     st.divider()
 
