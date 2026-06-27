@@ -186,42 +186,36 @@ if analyze:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("Sub-Score Radar")
+        st.subheader("Sub-Score Breakdown")
         categories = ["Trend Score", "Buzz Score", "Sales Potential"]
-        values = [scores["trend_score"], scores["buzz_score"], scores["sales_score"]]
-        # Floor at 1.0 so the polygon is never degenerate (Plotly raises ValueError
-        # when fill="toself" receives all-zero or near-zero radial coordinates).
-        radar_values = [max(float(v), 1.0) for v in values]
+        values = [
+            float(scores["trend_score"]),
+            float(scores["buzz_score"]),
+            float(scores["sales_score"]),
+        ]
 
-        radar = go.Figure()
-        radar.add_trace(
-            go.Scatterpolar(
-                r=radar_values + [radar_values[0]],
-                theta=categories + [categories[0]],
-                fill="toself",
-                fillcolor=f"{color}2a",
-                line=dict(color=color, width=2.5),
-                marker=dict(size=7, color=color),
-                name="Score",
+        bar = go.Figure()
+        bar.add_trace(
+            go.Bar(
+                x=categories,
+                y=values,
+                marker_color=[color] * 3,
+                text=[f"{v:.1f}" for v in values],
+                textposition="outside",
+                textfont=dict(size=14, color=color),
+                cliponaxis=False,
             )
         )
-        radar.update_layout(
-            polar=dict(
-                bgcolor="#111",
-                radialaxis=dict(
-                    visible=True,
-                    range=[0, 100],
-                    tickfont=dict(size=10),
-                    gridcolor="#333",
-                ),
-                angularaxis=dict(gridcolor="#333"),
-            ),
+        bar.update_layout(
+            yaxis=dict(range=[0, 115], gridcolor="#333", ticksuffix=""),
+            xaxis=dict(tickfont=dict(size=13)),
             paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
             showlegend=False,
             height=380,
-            margin=dict(l=50, r=50, t=30, b=30),
+            margin=dict(l=20, r=20, t=30, b=40),
         )
-        st.plotly_chart(radar, use_container_width=True)
+        st.plotly_chart(bar, use_container_width=True)
 
     with right:
         st.subheader("Google Trends — Last 12 Months")
