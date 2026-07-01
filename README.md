@@ -19,20 +19,28 @@ Entering the wrong Amazon niche is one of the most common FBA mistakes. This too
 - 💬 **Reddit buzz tracking** — mention volume from r/fulfillmentbyamazon and r/amazonseller
 - 📦 **BSR-to-sales estimator** — estimates monthly unit sales from Best Seller Rank
 - 🎯 **Weighted Opportunity Score** — combines all signals into a single 0–100 score
-- 📊 **Radar chart** — visual breakdown of Trend, Buzz, and Sales Potential sub-scores
+- 📊 **Opportunity Score gauge** - color-coded visual gauge with per-signal metric cards (Trend, Buzz, Sales)
 - 🟢 Color-coded output — green (>70), yellow (40–70), red (<40)
 
 ---
 
 ## Scoring Methodology
 
-| Signal | Weight | Normalization |
-|---|---|---|
-| Google Trends avg (0–100) | 40% | Direct — already 0–100 |
-| Reddit mentions (30 days) | 30% | Log scale — 50 mentions = 100 |
-| Est. monthly sales from BSR | 30% | Log scale — anchored to BSR=1 ceiling |
+| Signal                      | Weight | Normalization                                                        |
+| ---------------------------- | ------ | --------------------------------------------------------------------- |
+| Google Trends avg (0–100)    | 40%    | Direct — already 0–100                                                |
+| Reddit mentions (30 days)    | 30%    | Log scale — 50 mentions ≈ 100, 1 mention ≈ 29, 0 → 0                  |
+| Est. monthly sales from BSR  | 30%    | Log scale — anchored to a BSR=1 ceiling of ~25,000 units/month        |
 
-**BSR → Sales formula:** `estimated_monthly_sales = 3000 / (BSR ^ 0.7)`
+**BSR → Sales formula:** `estimated_monthly_sales = 25000 / (BSR ^ 0.7)`
+
+Calibrated to competitive categories (e.g. Home & Kitchen):
+- BSR 100 ≈ 995 units/month
+- BSR 1,000 ≈ 199 units/month
+- BSR 5,000 ≈ 64 units/month
+- BSR 50,000 ≈ 13 units/month
+
+**Final score:** `opportunity_score = (trend × 0.40) + (buzz × 0.30) + (sales × 0.30)`
 
 ---
 
