@@ -19,12 +19,12 @@ def _buzz_score(mentions: int) -> float:
 
 def _sales_score(estimated_sales: float) -> float:
     """Log-normalize estimated monthly sales.
-    Anchored to the BSR=1 ceiling of ~3000 units.
-    BSR≈10 (~600 units) → ~86; BSR≈100 (~120 units) → ~70; BSR≈10k (~5 units) → ~38.
+    Anchored to the BSR=1 ceiling of ~25000 units (25000 / 1^0.7).
+    BSR≈10 (~4988 units) → ~84; BSR≈100 (~995 units) → ~68; BSR≈10k (~40 units) → ~37.
     """
     if estimated_sales <= 0:
         return 0.0
-    score = math.log10(estimated_sales + 1) / math.log10(3001) * 100
+    score = math.log10(estimated_sales + 1) / math.log10(25001) * 100
     return max(0.0, min(100.0, score))
 
 

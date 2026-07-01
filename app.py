@@ -1,94 +1,175 @@
-import streamlit as st
-import plotly.graph_objects as go
 import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
 
 from data.fetcher import fetch_google_trends, fetch_reddit_mentions, estimate_monthly_sales
 from scorer import calculate_opportunity_score
+import styles
 
-# ── Page config ──────────────────────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="FBA Product Opportunity Scorecard",
+    page_title="FBA Opportunity Scorecard",
     page_icon="📦",
     layout="wide",
 )
+styles.inject_css()
 
-# ── Global styles ─────────────────────────────────────────────────────────────
-st.markdown(
-    """
-    <style>
-        .block-container { padding-top: 2rem; }
-        div[data-testid="metric-container"] {
-            background: #1e1e2e;
-            border: 1px solid #313244;
-            border-radius: 10px;
-            padding: 16px 20px;
-        }
-        div[data-testid="metric-container"] label { color: #cdd6f4 !important; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# ── Plotly builders ───────────────────────────────────────────────────────────
+
+def _gauge(score: float, color: str) -> go.Figure:
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        number={
+            "font": {
+                "size": 58,
+                "color": color,
+                "family": "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+            },
+        },
+        gauge={
+            "axis": {
+                "range": [0, 100],
+                "tickvals": [0, 25, 50, 75, 100],
+                "tickfont": {"color": styles.TEXT_MUT, "size": 9},
+                "tickwidth": 1,
+                "tickcolor": styles.BORDER,
+            },
+            "bar": {"color": color, "thickness": 0.2},
+            "bgcolor": "rgba(0,0,0,0)",
+            "borderwidth": 0,
+            "bordercolor": "rgba(0,0,0,0)",
+            "steps": [
+                {"range": [0,  40], "color": "rgba(239,68,68,0.10)"},
+                {"range": [40, 70], "color": "rgba(245,158,11,0.10)"},
+                {"range": [70,100], "color": "rgba(16,185,129,0.10)"},
+            ],
+            "threshold": {
+                "line": {"color": color, "width": 4},
+                "thickness": 0.78,
+                "value": score,
+            },
+        },
+        title={
+            "text": "OPPORTUNITY SCORE",
+            "font": {"size": 10, "color": styles.TEXT_MUT},
+            "align": "center",
+        },
+        domain={"x": [0, 1], "y": [0.05, 1]},
+    ))
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=290,
+        margin={"l": 25, "r": 25, "t": 45, "b": 5},
+        font={"color": styles.TEXT_SEC, "family": "-apple-system, sans-serif"},
+    )
+    return fig
+
+
+def _sparkline(df: pd.DataFrame, keyword: str) -> go.Figure | None:
+    if df is None or df.empty:
+        return None
+    try:
+        col = df.columns[0]
+        x = list(df.index)
+        y = [float(v) for v in df[col]]
+    except Exception:
+        return None
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x, y=y,
+        mode="lines",
+        line=dict(color=styles.ACCENT, width=2),
+        fill="tozeroy",
+        fillcolor="rgba(99,102,241,0.07)",
+        hovertemplate="%{x|%b %Y}  ·  interest: %{y:.0f}<extra></extra>",
+        name=keyword,
+    ))
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=170,
+        margin={"l": 0, "r": 0, "t": 0, "b": 0},
+        xaxis=dict(
+            showgrid=False,
+            showline=False,
+            zeroline=False,
+            tickfont=dict(color=styles.TEXT_MUT, size=9),
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="rgba(42,63,95,0.35)",
+            showline=False,
+            zeroline=False,
+            tickfont=dict(color=styles.TEXT_MUT, size=9),
+            range=[0, 108],
+            title=None,
+        ),
+        hovermode="x unified",
+        showlegend=False,
+    )
+    return fig
+
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("📖 How to Use")
     st.markdown(
-        """
-        1. **Enter a product keyword** — e.g. *bamboo cutting board*
-        2. **Enter the BSR** from an Amazon competitor's listing
-        3. Click **Analyze Opportunity**
-
-        ---
-
-        **Score thresholds**
-
-        | Score | Signal |
-        |-------|--------|
-        | 🟢 > 70 | Strong opportunity |
-        | 🟡 40 – 70 | Moderate opportunity |
-        | 🔴 < 40 | Weak opportunity |
-
-        ---
-
-        **What each signal measures**
-
-        - **Trend Score (40%)** — average Google search interest over the last 12 months (0–100 scale)
-        - **Buzz Score (30%)** — Reddit post volume in r/fulfillmentbyamazon and r/amazonseller over the last 30 days
-        - **Sales Potential (30%)** — estimated monthly unit sales derived from BSR using `3000 ÷ BSR^0.7`
-
-        ---
-
-        **Reddit credentials**
-
-        Add a `.streamlit/secrets.toml` file in this project:
-
-        ```toml
-        [reddit]
-        client_id     = "your_client_id"
-        client_secret = "your_client_secret"
-        user_agent    = "fba-scorecard/1.0"
-        ```
-
-        Get free credentials at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps).
-        Without them the Buzz Score defaults to 0.
-        """
+        '<div style="font-size:0.62rem;font-weight:700;letter-spacing:0.16em;'
+        'text-transform:uppercase;color:#6366f1;margin-bottom:1.25rem;">How it works</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "1. Enter a **product keyword** — e.g. *bamboo cutting board*  \n"
+        "2. Enter the **BSR** from a competitor's listing  \n"
+        "3. Click **Analyze**"
+    )
+    st.divider()
+    st.markdown(
+        '<div style="font-size:0.62rem;font-weight:700;letter-spacing:0.16em;'
+        'text-transform:uppercase;color:#6366f1;margin-bottom:0.75rem;">Score guide</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "| Score | Signal |\n|---|---|\n"
+        "| ≥ 70 | 🟢 Strong |\n"
+        "| 40 – 69 | 🟡 Moderate |\n"
+        "| < 40 | 🔴 Weak |"
+    )
+    st.divider()
+    st.markdown(
+        '<div style="font-size:0.62rem;font-weight:700;letter-spacing:0.16em;'
+        'text-transform:uppercase;color:#6366f1;margin-bottom:0.75rem;">Reddit setup</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "Add credentials to `.streamlit/secrets.toml`:\n"
+        "```toml\n[reddit]\nclient_id = \"…\"\nclient_secret = \"…\"\n"
+        "user_agent = \"fba-scorecard/1.0\"\n```\n"
+        "Without them the Buzz Score defaults to 0."
+    )
+    st.divider()
+    st.markdown(
+        '<div style="font-size:0.62rem;font-weight:700;letter-spacing:0.16em;'
+        'text-transform:uppercase;color:#6366f1;margin-bottom:0.75rem;">Signal weights</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "- **Trend** (40%) — Google search interest  \n"
+        "- **Buzz** (30%) — Reddit post volume  \n"
+        "- **Sales** (30%) — BSR-derived estimate"
     )
 
-# ── Header ────────────────────────────────────────────────────────────────────
-st.title("📦 FBA Product Opportunity Scorecard")
-st.markdown(
-    "Score any Amazon product niche in seconds using live Google Trends data, "
-    "Reddit community buzz, and BSR-derived sales estimates."
-)
-st.divider()
+# ── Hero ──────────────────────────────────────────────────────────────────────
+st.markdown(styles.hero(), unsafe_allow_html=True)
 
-# ── Inputs ────────────────────────────────────────────────────────────────────
-col_kw, col_bsr, col_btn = st.columns([3, 2, 1.2])
+# ── Input strip ───────────────────────────────────────────────────────────────
+col_kw, col_bsr, col_btn = st.columns([3.5, 2, 1.2])
 with col_kw:
     keyword = st.text_input(
         "Product Keyword",
         placeholder="e.g. bamboo cutting board",
-        label_visibility="visible",
     )
 with col_bsr:
     bsr = st.number_input(
@@ -100,29 +181,34 @@ with col_bsr:
     )
 with col_btn:
     st.markdown("<br>", unsafe_allow_html=True)
-    analyze = st.button("🔍 Analyze", type="primary", use_container_width=True)
+    analyze = st.button("Analyze", type="primary", use_container_width=True)
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
-if analyze:
-    if not keyword.strip():
-        st.error("Please enter a product keyword before analyzing.")
-        st.stop()
+if not analyze:
+    st.markdown(styles.empty_state(), unsafe_allow_html=True)
+    st.stop()
 
-    # Detect Reddit credentials
-    reddit_ok = False
-    try:
-        rc = st.secrets.get("reddit", {})
-        if rc.get("client_id") and rc.get("client_secret") and rc.get("user_agent"):
-            reddit_ok = True
-    except Exception:
-        pass
+if not keyword.strip():
+    st.error("Enter a product keyword to continue.")
+    st.stop()
 
-    if not reddit_ok:
-        st.warning(
-            "Reddit API credentials not found — Buzz Score will be 0. "
-            "See the sidebar for setup instructions."
-        )
+# Detect Reddit credentials
+reddit_ok = False
+try:
+    rc = st.secrets.get("reddit", {})
+    if rc.get("client_id") and rc.get("client_secret") and rc.get("user_agent"):
+        reddit_ok = True
+except Exception:
+    pass
 
+if not reddit_ok:
+    st.warning(
+        "Reddit credentials not configured — Buzz Score will be 0. "
+        "See sidebar for setup instructions.",
+        icon="ℹ️",
+    )
+
+try:
     with st.spinner("Fetching live data…"):
         trends_result = fetch_google_trends(keyword.strip())
 
@@ -143,152 +229,100 @@ if analyze:
             est_sales,
         )
 
-    opp = scores["opportunity_score"]
+    opp  = scores["opportunity_score"]
+    c    = styles.score_color(opp)
 
-    if opp >= 70:
-        color, fill_color, label, badge = "#2ecc71", "rgba(46, 204, 113, 0.13)", "Strong Opportunity", "🟢"
-    elif opp >= 40:
-        color, fill_color, label, badge = "#f39c12", "rgba(243, 156, 18, 0.13)", "Moderate Opportunity", "🟡"
+    # ── Score centerpiece ─────────────────────────────────────────────────────
+    gauge_col, cards_col = st.columns([5, 7], gap="large")
+
+    with gauge_col:
+        st.plotly_chart(_gauge(opp, c), use_container_width=True, config={"displayModeBar": False})
+        st.markdown(styles.verdict(opp), unsafe_allow_html=True)
+
+    with cards_col:
+        trend_s = scores["trend_score"]
+        buzz_s  = scores["buzz_score"]
+        sales_s = scores["sales_score"]
+
+        cards_html = (
+            '<div class="metric-grid">'
+            + styles.metric_card(
+                "Est. Monthly Sales",
+                f"{est_sales:,.0f}",
+                "units / month",
+                0,
+                "",
+                show_bar=False,
+            )
+            + styles.metric_card(
+                "Trend Score",
+                f"{trend_s:.0f}",
+                "out of 100 · google trends",
+                trend_s,
+                styles.score_color(trend_s),
+            )
+            + styles.metric_card(
+                "Buzz Score",
+                f"{buzz_s:.0f}",
+                "out of 100 · reddit signal",
+                buzz_s,
+                styles.score_color(buzz_s),
+            )
+            + styles.metric_card(
+                "Sales Score",
+                f"{sales_s:.0f}",
+                "out of 100 · bsr-derived",
+                sales_s,
+                styles.score_color(sales_s),
+            )
+            + "</div>"
+        )
+        st.markdown(cards_html, unsafe_allow_html=True)
+
+    # ── Google Trends sparkline ────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    trend_df: pd.DataFrame = trends_result.get("data", pd.DataFrame())
+    fig_spark = _sparkline(trend_df, keyword.strip())
+
+    st.markdown(
+        styles.section_card(
+            "Google Trends",
+            f'"{keyword.strip()}" · last 12 months · interest 0–100',
+        ),
+        unsafe_allow_html=True,
+    )
+
+    if fig_spark:
+        st.plotly_chart(fig_spark, use_container_width=True, config={"displayModeBar": False})
     else:
-        color, fill_color, label, badge = "#e74c3c", "rgba(231, 76, 60, 0.13)", "Weak Opportunity", "🔴"
-
-    st.divider()
-
-    # ── Opportunity Score card ────────────────────────────────────────────────
-    card_col, spacer = st.columns([1, 2])
-    with card_col:
         st.markdown(
-            f"""
-            <div style="
-                background: {color}18;
-                border: 2px solid {color};
-                border-radius: 18px;
-                padding: 28px 24px;
-                text-align: center;
-            ">
-                <div style="font-size: 4rem; font-weight: 800; color: {color}; line-height: 1;">
-                    {opp}
-                </div>
-                <div style="font-size: 1.15rem; font-weight: 600; color: {color}; margin-top: 6px;">
-                    {badge} {label}
-                </div>
-                <div style="font-size: 0.85rem; color: #888; margin-top: 4px;">
-                    Opportunity Score out of 100
-                </div>
-            </div>
-            """,
+            '<div style="padding:2rem 0;text-align:center;color:#64748b;font-size:0.82rem;">'
+            "No trend data returned for this keyword — try a broader term.</div>",
             unsafe_allow_html=True,
         )
-
-    st.divider()
-
-    # ── Charts row ────────────────────────────────────────────────────────────
-    left, right = st.columns(2)
-
-    with left:
-        st.subheader("Sub-Score Breakdown")
-        categories = ["Trend Score", "Buzz Score", "Sales Potential"]
-        values = [
-            float(scores["trend_score"]),
-            float(scores["buzz_score"]),
-            float(scores["sales_score"]),
-        ]
-
-        bar = go.Figure()
-        bar.add_trace(
-            go.Bar(
-                x=categories,
-                y=values,
-                marker_color=[color] * 3,
-                text=[f"{v:.1f}" for v in values],
-                textposition="outside",
-                textfont=dict(size=14, color=color),
-                cliponaxis=False,
-            )
-        )
-        bar.update_layout(
-            yaxis=dict(range=[0, 115], gridcolor="#333", ticksuffix=""),
-            xaxis=dict(tickfont=dict(size=13)),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            showlegend=False,
-            height=380,
-            margin=dict(l=20, r=20, t=30, b=40),
-        )
-        st.plotly_chart(bar, use_container_width=True)
-
-    with right:
-        st.subheader("Google Trends — Last 12 Months")
-        trend_df: pd.DataFrame = trends_result.get("data", pd.DataFrame())
-
-        if not trend_df.empty:
-            try:
-                col_name = trend_df.columns[0]
-                x_vals = list(trend_df.index)
-                y_vals = [float(v) for v in trend_df[col_name]]
-
-                line = go.Figure()
-                line.add_trace(
-                    go.Scatter(
-                        x=x_vals,
-                        y=y_vals,
-                        mode="lines",
-                        line=dict(color=color, width=2.5),
-                        fill="tozeroy",
-                        fillcolor=fill_color,
-                        name=keyword,
-                    )
-                )
-                line.update_layout(
-                    xaxis_title="Date",
-                    yaxis_title="Interest (0 – 100)",
-                    yaxis=dict(range=[0, 105], gridcolor="#333"),
-                    xaxis=dict(gridcolor="#333"),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    height=380,
-                    margin=dict(l=50, r=20, t=30, b=50),
-                    hovermode="x unified",
-                )
-                st.plotly_chart(line, use_container_width=True)
-            except Exception as e:
-                st.warning(
-                    f"Could not render the Trends chart for **{keyword}**. "
-                    "The data was fetched but could not be plotted — "
-                    "try a different keyword or search again."
-                )
-                st.caption(f"Chart error: {e}")
-        else:
-            st.warning(
-                f"No Google Trends data returned for **{keyword}**. "
-                "Try a broader term or wait a moment if you've searched frequently."
-            )
-            if "error" in trends_result:
-                st.caption(f"Fetch error: {trends_result['error']}")
-
-    st.divider()
-
-    # ── Raw data metrics ──────────────────────────────────────────────────────
-    st.subheader("Raw Signal Data")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Trend Score", f"{scores['trend_score']} / 100")
-    m2.metric("Buzz Score", f"{scores['buzz_score']} / 100")
-    m3.metric("Sales Potential Score", f"{scores['sales_score']} / 100")
-    m4.metric("Est. Monthly Sales", f"{est_sales:,.0f} units")
-
-    with st.expander("Signal details"):
-        detail_col1, detail_col2, detail_col3 = st.columns(3)
-        detail_col1.markdown(
-            f"**Avg. Google Trends interest:** {trends_result['average']:.1f} / 100"
-        )
-        detail_col2.markdown(
-            f"**Reddit mentions (30 days):** {reddit_result['mentions']}"
-        )
-        detail_col3.markdown(
-            f"**BSR entered:** {bsr:,}  \n**Formula:** 3000 ÷ {bsr}^0.7 = {est_sales:,.1f}"
-        )
-
-        if "error" in reddit_result:
-            st.caption(f"Reddit fetch issue: {reddit_result['error']}")
         if "error" in trends_result:
-            st.caption(f"Trends fetch issue: {trends_result['error']}")
+            st.caption(f"Fetch error: {trends_result['error']}")
+
+    # ── Raw signal data ────────────────────────────────────────────────────────
+    with st.expander("Raw signal data"):
+        st.markdown(
+            styles.raw_data(
+                trends_result["average"],
+                reddit_result["mentions"],
+                bsr,
+                est_sales,
+            ),
+            unsafe_allow_html=True,
+        )
+        if "error" in reddit_result:
+            st.caption(f"Reddit: {reddit_result['error']}")
+        if "error" in trends_result:
+            st.caption(f"Trends: {trends_result['error']}")
+
+except Exception as exc:
+    st.error(
+        f"Something went wrong while analyzing **{keyword.strip()}** — {exc}. "
+        "Try adjusting your inputs and running the analysis again.",
+        icon="⚠️",
+    )

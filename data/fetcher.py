@@ -51,7 +51,10 @@ def fetch_reddit_mentions(
 
 
 def estimate_monthly_sales(bsr: int) -> float:
-    """Estimate monthly unit sales from BSR using: 3000 / (BSR ^ 0.7)."""
+    """Estimate monthly unit sales from BSR using: 25000 / (BSR ^ 0.7).
+    Calibrated to competitive categories (e.g. Home & Kitchen).
+    BSR 100 ≈ 995, BSR 1000 ≈ 199, BSR 5000 ≈ 64, BSR 50000 ≈ 13.
+    """
     if bsr <= 0:
         return 0.0
-    return 3000.0 / (bsr**0.7)
+    return 25000.0 / (bsr**0.7)
